@@ -1,0 +1,6 @@
+{
+  "name": "Momentum AI",
+  "description": "An intelligent productivity companion and AI-powered task planner, priority engine, habit tracker, and career coach.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
