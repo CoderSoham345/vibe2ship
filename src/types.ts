@@ -68,10 +68,11 @@ export interface Habit {
 
 export interface SmartNotification {
   id: string;
+  notificationId?: string;
   title: string;
   message: string;
-  type: 'deadline' | 'rescue' | 'habit' | 'goal' | 'suggestion';
-  timestamp: string;
+  category: 'tasks' | 'goals' | 'habits' | 'ai' | 'rescue';
+  createdAt: string;
   read: boolean;
 }
 
