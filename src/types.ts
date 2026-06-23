@@ -96,3 +96,13 @@ export interface PlannerSchedule {
   breakSuggestions: string[];
   aiSummary?: string;
 }
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'Low' | 'Medium' | 'High';
+  startTime: string; 
+  endTime: string;
+  type: 'Work' | 'Meeting' | 'Deep Work' | 'Break' | 'Personal';
+}
