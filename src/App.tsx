@@ -167,6 +167,102 @@ export default function App() {
 
     const uid = currentUser.uid;
 
+    if (uid === "guest-local-session") {
+      // 1. Setup local simulated workspace states from localStorage or defaults
+      const localTasks = JSON.parse(localStorage.getItem("momentum_guest_tasks") || "[]");
+      if (localTasks.length === 0) {
+        const defaultTasks: Task[] = [
+          {
+            taskId: "task-1",
+            title: "Sprint Retrospective & Calibration",
+            description: "Review last week's commits, audit queue structures, and formulate milestones.",
+            priority: "High",
+            status: "pending",
+            category: "Work",
+            estimatedHours: 1.5,
+            deadline: new Date().toISOString().split("T")[0],
+            createdAt: new Date().toISOString(),
+            riskScore: 25
+          },
+          {
+            taskId: "task-2",
+            title: "Optimize React Render Loops",
+            description: "Stabilize context hooks, audit state re-renders, and fix layout shifting.",
+            priority: "High",
+            status: "pending",
+            category: "Projects",
+            estimatedHours: 2,
+            deadline: new Date().toISOString().split("T")[0],
+            createdAt: new Date().toISOString(),
+            riskScore: 30
+          },
+          {
+            taskId: "task-3",
+            title: "Sensorial Reset Buffer",
+            description: "Practice deep breathing and ocular decompression.",
+            priority: "Low",
+            status: "pending",
+            category: "Health",
+            estimatedHours: 0.5,
+            deadline: new Date().toISOString().split("T")[0],
+            createdAt: new Date().toISOString(),
+            riskScore: 10
+          }
+        ];
+        setTasks(defaultTasks);
+        localStorage.setItem("momentum_guest_tasks", JSON.stringify(defaultTasks));
+      } else {
+        setTasks(localTasks);
+      }
+
+      const localGoals = JSON.parse(localStorage.getItem("momentum_guest_goals") || "[]");
+      if (localGoals.length === 0) {
+        const defaultGoals: Goal[] = [
+          { goalId: "goal-1", goalName: "Complete AI Planner Suite", description: "Deliver interactive timeline, drag-and-drop, and statistics.", targetDate: "2026-07-01", progress: 85, category: "Personal", milestones: [] }
+        ];
+        setGoals(defaultGoals);
+        localStorage.setItem("momentum_guest_goals", JSON.stringify(defaultGoals));
+      } else {
+        setGoals(localGoals);
+      }
+
+      const localHabits = JSON.parse(localStorage.getItem("momentum_guest_habits") || "[]");
+      if (localHabits.length === 0) {
+        const defaultHabits: Habit[] = [
+          { habitId: "habit-1", habitName: "Ocular Decompression Buffer", frequency: "daily", target: 1, currentStreak: 5, longestStreak: 12, consistencyScore: 80, history: { [new Date().toISOString().split("T")[0]]: true } }
+        ];
+        setHabits(defaultHabits);
+        localStorage.setItem("momentum_guest_habits", JSON.stringify(defaultHabits));
+      } else {
+        setHabits(localHabits);
+      }
+
+      const localChats = JSON.parse(localStorage.getItem("momentum_guest_chats") || "[]");
+      if (localChats.length === 0) {
+        const defaultChats: ChatMessage[] = [
+          { id: "chat-1", text: "Welcome to Momentum AI Sandbox! I am your strategic mentor. Try adding some tasks, planning your calendar, or testing the smart features completely offline.", role: "model", timestamp: new Date().toISOString() }
+        ];
+        setChats(defaultChats);
+        localStorage.setItem("momentum_guest_chats", JSON.stringify(defaultChats));
+      } else {
+        setChats(localChats);
+      }
+
+      const localNotifications = JSON.parse(localStorage.getItem("momentum_guest_notifications") || "[]");
+      if (localNotifications.length === 0) {
+        const defaultNotifs: SmartNotification[] = [
+          { id: "notif-1", notificationId: "notif-1", title: "👋 Welcome, Guest!", message: "Enjoy the fully offline-capable workspace demo. You can schedule tasks, test drag-and-drop, and calibrate AI.", read: false, createdAt: new Date().toISOString(), category: "ai" }
+        ];
+        setNotifications(defaultNotifs);
+        localStorage.setItem("momentum_guest_notifications", JSON.stringify(defaultNotifs));
+      } else {
+        setNotifications(localNotifications);
+      }
+
+      setDataLoading(false);
+      return () => {};
+    }
+
     // 1. User Profile Sync
     const profileRef = doc(db, "users", uid);
     const unProfile = onSnapshot(profileRef, (docSnap) => {
@@ -264,7 +360,20 @@ export default function App() {
   }, [currentUser]);
 
   // Handle Authentication Success inside LandingPage
-  const handleAuthSuccess = (uid: string) => {
+  const handleAuthSuccess = (uid: string, mockUser?: any) => {
+    if (mockUser) {
+      setCurrentUser(mockUser);
+      setUserProfile({
+        uid: mockUser.uid,
+        name: mockUser.displayName || "Guest Strategist",
+        email: mockUser.email || "guest@momentum.ai",
+        college: "N/A",
+        profession: "Guest",
+        createdAt: new Date().toISOString(),
+        productivityScore: 75,
+        onboardingCompleted: true
+      });
+    }
     setAuthLoading(false);
   };
 
@@ -473,6 +582,33 @@ export default function App() {
   // 1. Task Management
   const handleAddTask = async (taskData: Omit<Task, "taskId" | "createdAt" | "riskScore">) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const newTask: Task = {
+        ...taskData,
+        taskId: "task-" + Date.now(),
+        createdAt: new Date().toISOString(),
+        riskScore: 25
+      };
+      const updated = [newTask, ...tasks];
+      setTasks(updated);
+      localStorage.setItem("momentum_guest_tasks", JSON.stringify(updated));
+
+      const localNotif: SmartNotification = {
+        id: "notif-" + Date.now(),
+        notificationId: "notif-" + Date.now(),
+        category: "tasks",
+        title: "Task Allocated Successfully",
+        message: `Task "${taskData.title}" registered with urgency priority of ${taskData.priority}.`,
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      const updatedNotifs = [localNotif, ...notifications];
+      setNotifications(updatedNotifs);
+      localStorage.setItem("momentum_guest_notifications", JSON.stringify(updatedNotifs));
+
+      await handleRecalculateMomentumScore();
+      return;
+    }
     try {
       const colRef = collection(db, "users", currentUser.uid, "tasks");
       await addDoc(colRef, {
@@ -500,6 +636,13 @@ export default function App() {
 
   const handleEditTask = async (taskId: string, updatedFields: Partial<Task>) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = tasks.map(t => t.taskId === taskId ? { ...t, ...updatedFields } : t);
+      setTasks(updated);
+      localStorage.setItem("momentum_guest_tasks", JSON.stringify(updated));
+      await handleRecalculateMomentumScore();
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid, "tasks", taskId);
       await updateDoc(docRef, updatedFields);
@@ -512,6 +655,13 @@ export default function App() {
 
   const handleDeleteTask = async (taskId: string) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = tasks.filter(t => t.taskId !== taskId);
+      setTasks(updated);
+      localStorage.setItem("momentum_guest_tasks", JSON.stringify(updated));
+      await handleRecalculateMomentumScore();
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid, "tasks", taskId);
       await deleteDoc(docRef);
@@ -525,6 +675,35 @@ export default function App() {
   // 2. Habit Tracker routines with strict streak mathematics
   const handleAddHabit = async (habitData: Omit<Habit, "habitId" | "currentStreak" | "longestStreak" | "consistencyScore" | "history">) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const newHabit: Habit = {
+        ...habitData,
+        habitId: "habit-" + Date.now(),
+        currentStreak: 0,
+        longestStreak: 0,
+        consistencyScore: 0,
+        history: {}
+      };
+      const updated = [newHabit, ...habits];
+      setHabits(updated);
+      localStorage.setItem("momentum_guest_habits", JSON.stringify(updated));
+
+      const localNotif: SmartNotification = {
+        id: "notif-" + Date.now(),
+        notificationId: "notif-" + Date.now(),
+        category: "habits",
+        title: "Habit Target Registered",
+        message: `Habit "${habitData.habitName}" built into your daily tracking metrics.`,
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      const updatedNotifs = [localNotif, ...notifications];
+      setNotifications(updatedNotifs);
+      localStorage.setItem("momentum_guest_notifications", JSON.stringify(updatedNotifs));
+
+      await handleRecalculateMomentumScore();
+      return;
+    }
     try {
       const colRef = collection(db, "users", currentUser.uid, "habits");
       await addDoc(colRef, {
@@ -626,6 +805,37 @@ export default function App() {
       }
       const consistencyScore = Math.round((checkCount / 30) * 100);
 
+      if (currentUser.uid === "guest-local-session") {
+        const updatedHabit = {
+          ...habit,
+          history: updatedHistory,
+          currentStreak,
+          longestStreak: Math.max(longestStreak, currentStreak),
+          consistencyScore
+        };
+        const updatedHabitsList = habits.map(h => h.habitId === habitId ? updatedHabit : h);
+        setHabits(updatedHabitsList);
+        localStorage.setItem("momentum_guest_habits", JSON.stringify(updatedHabitsList));
+
+        if (justChecked && currentStreak > 0 && currentStreak % 3 === 0) {
+          const localNotif: SmartNotification = {
+            id: "notif-" + Date.now(),
+            notificationId: "notif-" + Date.now(),
+            category: "habits",
+            title: "🔥 Consistency Fire!",
+            message: `Great focus! You've achieved a ${currentStreak}-day milestone on "${habit.habitName}". Keep pushing.`,
+            read: false,
+            createdAt: new Date().toISOString()
+          };
+          const updatedNotifs = [localNotif, ...notifications];
+          setNotifications(updatedNotifs);
+          localStorage.setItem("momentum_guest_notifications", JSON.stringify(updatedNotifs));
+        }
+
+        await handleRecalculateMomentumScore();
+        return;
+      }
+
       const docRef = doc(db, "users", currentUser.uid, "habits", habitId);
       await updateDoc(docRef, {
         history: updatedHistory,
@@ -654,6 +864,12 @@ export default function App() {
 
   const handleDeleteHabit = async (habitId: string) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = habits.filter(h => h.habitId !== habitId);
+      setHabits(updated);
+      localStorage.setItem("momentum_guest_habits", JSON.stringify(updated));
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid, "habits", habitId);
       await deleteDoc(docRef);
@@ -666,6 +882,30 @@ export default function App() {
   // 3. Goal Management routines
   const handleAddGoal = async (goalData: Omit<Goal, "goalId" | "progress">) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const newGoal: Goal = {
+        ...goalData,
+        goalId: "goal-" + Date.now(),
+        progress: 0
+      };
+      const updated = [newGoal, ...goals];
+      setGoals(updated);
+      localStorage.setItem("momentum_guest_goals", JSON.stringify(updated));
+
+      const localNotif: SmartNotification = {
+        id: "notif-" + Date.now(),
+        notificationId: "notif-" + Date.now(),
+        category: "goals",
+        title: "Strategic Milestone Established",
+        message: `New Goal "${goalData.goalName}" logged. AI Sprint Roadmaps can now be synthesized.`,
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      const updatedNotifs = [localNotif, ...notifications];
+      setNotifications(updatedNotifs);
+      localStorage.setItem("momentum_guest_notifications", JSON.stringify(updatedNotifs));
+      return;
+    }
     try {
       const colRef = collection(db, "users", currentUser.uid, "goals");
       await addDoc(colRef, {
@@ -688,6 +928,12 @@ export default function App() {
 
   const handleEditGoal = async (goalId: string, updatedFields: Partial<Goal>) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = goals.map(g => g.goalId === goalId ? { ...g, ...updatedFields } : g);
+      setGoals(updated);
+      localStorage.setItem("momentum_guest_goals", JSON.stringify(updated));
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid, "goals", goalId);
       await updateDoc(docRef, updatedFields);
@@ -699,6 +945,12 @@ export default function App() {
 
   const handleDeleteGoal = async (goalId: string) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = goals.filter(g => g.goalId !== goalId);
+      setGoals(updated);
+      localStorage.setItem("momentum_guest_goals", JSON.stringify(updated));
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid, "goals", goalId);
       await deleteDoc(docRef);
@@ -711,6 +963,10 @@ export default function App() {
   // 4. Update core profile params (college, profession)
   const handleUpdateProfile = async (updatedFields: Partial<UserProfile>) => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      setUserProfile(prev => prev ? { ...prev, ...updatedFields } : null);
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid);
       await updateDoc(docRef, updatedFields);
@@ -726,6 +982,35 @@ export default function App() {
     const uid = currentUser.uid;
     const email = currentUser.email || "";
     const seed = getDemoModelData(uid, email);
+
+    if (uid === "guest-local-session") {
+      setUserProfile({
+        ...seed.profile,
+        uid: "guest-local-session"
+      });
+      setTasks(seed.tasks.map((t, idx) => ({ ...t, taskId: `task-seed-${idx}`, createdAt: new Date().toISOString() })));
+      setGoals(seed.goals.map((g, idx) => ({ ...g, goalId: `goal-seed-${idx}` })));
+      setHabits(seed.habits.map((h, idx) => ({ ...h, habitId: `habit-seed-${idx}` })));
+      setChats(seed.chats.map((c, idx) => ({ ...c, id: `chat-seed-${idx}` })));
+
+      const seedSuccessNotif: SmartNotification = {
+        id: "notif-seed-success",
+        notificationId: "notif-seed-success",
+        category: "ai",
+        title: "⚡ Core Strategy Seed Active",
+        message: "Academic and software engineering demonstration matrices are now calibrated. Ready for testing.",
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      setNotifications([seedSuccessNotif]);
+
+      localStorage.setItem("momentum_guest_tasks", JSON.stringify(seed.tasks.map((t, idx) => ({ ...t, taskId: `task-seed-${idx}`, createdAt: new Date().toISOString() }))));
+      localStorage.setItem("momentum_guest_goals", JSON.stringify(seed.goals.map((g, idx) => ({ ...g, goalId: `goal-seed-${idx}` }))));
+      localStorage.setItem("momentum_guest_habits", JSON.stringify(seed.habits.map((h, idx) => ({ ...h, habitId: `habit-seed-${idx}` }))));
+      localStorage.setItem("momentum_guest_chats", JSON.stringify(seed.chats.map((c, idx) => ({ ...c, id: `chat-seed-${idx}` }))));
+      localStorage.setItem("momentum_guest_notifications", JSON.stringify([seedSuccessNotif]));
+      return;
+    }
 
     try {
       const profileRef = doc(db, "users", uid);
@@ -813,16 +1098,31 @@ export default function App() {
 
     // Dynamically insert an alert notification when rescue details are successfully formulated
     if (currentUser) {
-      try {
-        await addDoc(collection(db, "users", currentUser.uid, "notifications"), {
+      if (currentUser.uid === "guest-local-session") {
+        const localNotif: SmartNotification = {
+          id: "notif-" + Date.now(),
+          notificationId: "notif-" + Date.now(),
           category: "rescue",
           title: "🚨 Rescue Protocol Activated",
           message: `AI generated a mitigation timetable to safeguard critical deadline on "${task.title}".`,
           read: false,
           createdAt: new Date().toISOString()
-        });
-      } catch (e) {
-        console.error(e);
+        };
+        const updatedNotifs = [localNotif, ...notifications];
+        setNotifications(updatedNotifs);
+        localStorage.setItem("momentum_guest_notifications", JSON.stringify(updatedNotifs));
+      } else {
+        try {
+          await addDoc(collection(db, "users", currentUser.uid, "notifications"), {
+            category: "rescue",
+            title: "🚨 Rescue Protocol Activated",
+            message: `AI generated a mitigation timetable to safeguard critical deadline on "${task.title}".`,
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
 
@@ -846,6 +1146,59 @@ export default function App() {
   const onSendMessage = async (text: string) => {
     if (!currentUser) return;
     
+    const userMsg: ChatMessage = {
+      id: "chat-user-" + Date.now(),
+      role: "user",
+      text,
+      timestamp: new Date().toISOString()
+    };
+
+    if (currentUser.uid === "guest-local-session") {
+      const updatedChats = [...chats, userMsg];
+      setChats(updatedChats);
+      localStorage.setItem("momentum_guest_chats", JSON.stringify(updatedChats));
+
+      const chatPayload = updatedChats.slice(-10);
+
+      try {
+        const res = await fetch("/api/ai/coach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            messages: chatPayload,
+            userProfile 
+          })
+        });
+
+        if (!res.ok) throw new Error("Coaching backend dispatch error");
+        const result = await res.json();
+
+        const botMsg: ChatMessage = {
+          id: "chat-bot-" + Date.now(),
+          role: "model",
+          text: result.text || "I am here to help you live in focus. Tell me more about your backlogs.",
+          timestamp: new Date().toISOString()
+        };
+
+        const finalChats = [...updatedChats, botMsg];
+        setChats(finalChats);
+        localStorage.setItem("momentum_guest_chats", JSON.stringify(finalChats));
+        return result;
+      } catch (err) {
+        console.error("Coach API error:", err);
+        const errorBotMsg: ChatMessage = {
+          id: "chat-bot-err-" + Date.now(),
+          role: "model",
+          text: "Momentum Assistant is currently running offline. You are doing fantastic! Write down your immediate micro-step and set a timer.",
+          timestamp: new Date().toISOString()
+        };
+        const finalChats = [...updatedChats, errorBotMsg];
+        setChats(finalChats);
+        localStorage.setItem("momentum_guest_chats", JSON.stringify(finalChats));
+        return { text: errorBotMsg.text };
+      }
+    }
+
     // 1. Log user message on firestore instantly
     const chatCol = collection(db, "users", currentUser.uid, "chats");
     try {
@@ -960,10 +1313,14 @@ export default function App() {
     const result = await res.json();
     
     if (result.suggestedProductivityScore && currentUser) {
-      const docRef = doc(db, "users", currentUser.uid);
-      await updateDoc(docRef, {
-        productivityScore: Math.min(100, Math.max(0, result.suggestedProductivityScore))
-      });
+      if (currentUser.uid === "guest-local-session") {
+        setUserProfile(prev => prev ? { ...prev, productivityScore: Math.min(100, Math.max(0, result.suggestedProductivityScore)) } : null);
+      } else {
+        const docRef = doc(db, "users", currentUser.uid);
+        await updateDoc(docRef, {
+          productivityScore: Math.min(100, Math.max(0, result.suggestedProductivityScore))
+        });
+      }
     }
 
     return result;
@@ -983,6 +1340,13 @@ export default function App() {
 
     const nextScore = Math.min(100, Math.max(40, 60 + taskPt + habitPt));
 
+    if (currentUser.uid === "guest-local-session") {
+      if (nextScore !== userProfile.productivityScore) {
+        setUserProfile(prev => prev ? { ...prev, productivityScore: nextScore } : null);
+      }
+      return;
+    }
+
     if (nextScore !== userProfile.productivityScore) {
       const docRef = doc(db, "users", currentUser.uid);
       try {
@@ -996,6 +1360,12 @@ export default function App() {
   // Notification methods
   const handleMarkNotificationRead = async (id: string) => {
     if (!currentUser || !id) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = notifications.map(n => (n.id === id || n.notificationId === id) ? { ...n, read: true } : n);
+      setNotifications(updated);
+      localStorage.setItem("momentum_guest_notifications", JSON.stringify(updated));
+      return;
+    }
     try {
       const docRef = doc(db, "users", currentUser.uid, "notifications", id);
       await updateDoc(docRef, { read: true });
@@ -1006,6 +1376,12 @@ export default function App() {
 
   const handleMarkAllNotificationsRead = async () => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      const updated = notifications.map(n => ({ ...n, read: true }));
+      setNotifications(updated);
+      localStorage.setItem("momentum_guest_notifications", JSON.stringify(updated));
+      return;
+    }
     try {
       const unreadList = notifications.filter(n => !n.read);
       for (const n of unreadList) {
@@ -1022,6 +1398,11 @@ export default function App() {
 
   const handleClearAllNotifications = async () => {
     if (!currentUser) return;
+    if (currentUser.uid === "guest-local-session") {
+      setNotifications([]);
+      localStorage.setItem("momentum_guest_notifications", "[]");
+      return;
+    }
     try {
       for (const n of notifications) {
         const id = n.notificationId || n.id;

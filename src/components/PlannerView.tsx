@@ -27,9 +27,10 @@ import { Task, PlannerSchedule, CalendarEvent } from "../types";
 interface PlannerViewProps {
   tasks: Task[];
   onTriggerPlanner: (availableHours: number, energyLevel: PlannerSchedule["energyLevel"]) => Promise<any>;
+  currentUserId?: string;
 }
 
-export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProps) {
+export default function PlannerView({ tasks, onTriggerPlanner, currentUserId }: PlannerViewProps) {
   // Navigation & View State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
@@ -128,26 +129,39 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
   // Subscribe to real-time events in Firestore
   useEffect(() => {
     let unsubscribe = () => {};
-    const uid = auth.currentUser?.uid;
+    const uid = currentUserId || auth.currentUser?.uid;
     if (uid) {
-      setEventsLoading(true);
-      const colRef = collection(db, "users", uid, "events");
-      unsubscribe = onSnapshot(colRef, (snapshot) => {
-        const list: CalendarEvent[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as CalendarEvent);
+      if (uid === "guest-local-session") {
+        setEventsLoading(true);
+        const localEvents = JSON.parse(localStorage.getItem("momentum_guest_events") || "[]");
+        if (localEvents.length === 0) {
+          const defaultEvents = getDummyEvents();
+          setDbEvents(defaultEvents);
+          localStorage.setItem("momentum_guest_events", JSON.stringify(defaultEvents));
+        } else {
+          setDbEvents(localEvents);
+        }
+        setEventsLoading(false);
+      } else {
+        setEventsLoading(true);
+        const colRef = collection(db, "users", uid, "events");
+        unsubscribe = onSnapshot(colRef, (snapshot) => {
+          const list: CalendarEvent[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ id: docSnap.id, ...docSnap.data() } as CalendarEvent);
+          });
+          setDbEvents(list);
+          setEventsLoading(false);
+        }, (error) => {
+          console.error("Firestore events subscription failed:", error);
+          setEventsLoading(false);
         });
-        setDbEvents(list);
-        setEventsLoading(false);
-      }, (error) => {
-        console.error("Firestore events subscription failed:", error);
-        setEventsLoading(false);
-      });
+      }
     } else {
       setEventsLoading(false);
     }
     return () => unsubscribe();
-  }, []);
+  }, [currentUserId]);
 
   // Compute active events (Firestore db events if populated, else falling back to relative dummy events)
   const activeEvents = dbEvents.length > 0 ? dbEvents : getDummyEvents();
@@ -330,10 +344,32 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
       return;
     }
 
-    const uid = auth.currentUser?.uid;
+    const uid = currentUserId || auth.currentUser?.uid;
     if (!uid) {
       // In guest mode (or offline fallback), we let user simulate addition inside local view
       alert("Authentication required. To save permanently on Firestore, log in first from landing page.");
+      setIsModalOpen(false);
+      return;
+    }
+
+    if (uid === "guest-local-session") {
+      const newEvt: CalendarEvent = {
+        id: selectedEvent ? selectedEvent.id : "event-" + Date.now(),
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        type: formData.type,
+        startTime: formData.startTime,
+        endTime: formData.endTime
+      };
+      let updated: CalendarEvent[] = [];
+      if (selectedEvent) {
+        updated = dbEvents.map(e => e.id === selectedEvent.id ? newEvt : e);
+      } else {
+        updated = [...dbEvents, newEvt];
+      }
+      setDbEvents(updated);
+      localStorage.setItem("momentum_guest_events", JSON.stringify(updated));
       setIsModalOpen(false);
       return;
     }
@@ -385,9 +421,17 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
   // Delete event
   const handleDeleteEventClick = async () => {
     if (!selectedEvent) return;
-    const uid = auth.currentUser?.uid;
+    const uid = currentUserId || auth.currentUser?.uid;
     if (!uid) {
       alert("Authentic connection is required to delete.");
+      setIsModalOpen(false);
+      return;
+    }
+
+    if (uid === "guest-local-session") {
+      const updated = dbEvents.filter(e => e.id !== selectedEvent.id);
+      setDbEvents(updated);
+      localStorage.setItem("momentum_guest_events", JSON.stringify(updated));
       setIsModalOpen(false);
       return;
     }
@@ -412,8 +456,15 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
   };
 
   const handleUpdateEventTimeRange = async (eventId: string, newStartISO: string, newEndISO: string) => {
-    const uid = auth.currentUser?.uid;
+    const uid = currentUserId || auth.currentUser?.uid;
     if (!uid) return;
+
+    if (uid === "guest-local-session") {
+      const updated = dbEvents.map(e => e.id === eventId ? { ...e, startTime: newStartISO, endTime: newEndISO } : e);
+      setDbEvents(updated);
+      localStorage.setItem("momentum_guest_events", JSON.stringify(updated));
+      return;
+    }
 
     try {
       if (eventId.startsWith("dummy-")) {
@@ -511,10 +562,10 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
       });
 
       // Automatically convert & schedule resulting timeblocks into our Firestore DB events!
-      const uid = auth.currentUser?.uid;
+      const uid = currentUserId || auth.currentUser?.uid;
       if (uid && result.scheduleBlocks && result.scheduleBlocks.length > 0) {
-        const colRef = collection(db, "users", uid, "events");
         const todayStr = formatDateISOString(new Date());
+        const newEventsList: CalendarEvent[] = [];
 
         for (const block of result.scheduleBlocks) {
           let hStart = "09:00";
@@ -531,7 +582,8 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
             hEnd = `${String((hr + Math.floor(totalMin / 60)) % 24).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
           }
 
-          await addDoc(colRef, {
+          newEventsList.push({
+            id: uid === "guest-local-session" ? "event-ai-" + Math.random().toString(36).substr(2, 9) : "",
             title: `Momentum AI: ${block.taskTitle}`,
             description: `AI scheduled block based on workspace calibration. Energy: ${energyLevel}. Type: ${block.type}.`,
             priority: block.type === "break" ? "Low" : "High",
@@ -541,15 +593,46 @@ export default function PlannerView({ tasks, onTriggerPlanner }: PlannerViewProp
           });
         }
 
-        // Push validation user alert notification
-        const notificationsRef = collection(db, "users", uid, "notifications");
-        await addDoc(notificationsRef, {
-          category: "ai",
-          title: "🔥 AI Calibration Dynamic Scheduling Complete",
-          message: `The Gemini engine analyzed ${activePendingTasks.length} pending backlogs and registered ${result.scheduleBlocks.length} optimized time blocks inside your live calendar planner.`,
-          read: false,
-          createdAt: new Date().toISOString()
-        });
+        if (uid === "guest-local-session") {
+          const updatedEvents = [...dbEvents, ...newEventsList];
+          setDbEvents(updatedEvents);
+          localStorage.setItem("momentum_guest_events", JSON.stringify(updatedEvents));
+
+          // Save the notification inside local guest storage too
+          const localNotif = {
+            id: "notif-ai-" + Date.now(),
+            notificationId: "notif-ai-" + Date.now(),
+            category: "ai",
+            title: "🔥 AI Calibration Dynamic Scheduling Complete",
+            message: `The Gemini engine analyzed ${activePendingTasks.length} pending backlogs and registered ${result.scheduleBlocks.length} optimized time blocks inside your live calendar planner.`,
+            read: false,
+            createdAt: new Date().toISOString()
+          };
+          const existingNotifs = JSON.parse(localStorage.getItem("momentum_guest_notifications") || "[]");
+          localStorage.setItem("momentum_guest_notifications", JSON.stringify([localNotif, ...existingNotifs]));
+        } else {
+          const colRef = collection(db, "users", uid, "events");
+          for (const ev of newEventsList) {
+            await addDoc(colRef, {
+              title: ev.title,
+              description: ev.description,
+              priority: ev.priority,
+              type: ev.type,
+              startTime: ev.startTime,
+              endTime: ev.endTime
+            });
+          }
+
+          // Push validation user alert notification
+          const notificationsRef = collection(db, "users", uid, "notifications");
+          await addDoc(notificationsRef, {
+            category: "ai",
+            title: "🔥 AI Calibration Dynamic Scheduling Complete",
+            message: `The Gemini engine analyzed ${activePendingTasks.length} pending backlogs and registered ${result.scheduleBlocks.length} optimized time blocks inside your live calendar planner.`,
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        }
       }
     } catch (err) {
       console.error("AI Timeblocking action failed:", err);

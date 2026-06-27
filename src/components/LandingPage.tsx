@@ -20,168 +20,16 @@ import {
   School,
   Briefcase
 } from "lucide-react";
-import { auth, googleProvider, db } from "../firebase";
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  sendPasswordResetEmail,
-  updateProfile 
-} from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import LoginComponent from "./LoginComponent";
+import SignupComponent from "./SignupComponent";
 import { motion, AnimatePresence } from "motion/react";
 
 interface LandingPageProps {
-  onAuthSuccess: (uid: string) => void;
+  onAuthSuccess: (uid: string, mockUser?: any) => void;
 }
 
 export default function LandingPage({ onAuthSuccess }: LandingPageProps) {
-  const [authMode, setAuthMode] = useState<"none" | "login" | "signup" | "forgot">("none");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [college, setCollege] = useState("");
-  const [profession, setProfession] = useState("Student");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-
-  // Authentication Handlers
-  const handleEmailSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email || !password) {
-      setErrorMsg("Please fill out all required fields.");
-      return;
-    }
-    setLoading(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-    try {
-      const userCred = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCred.user;
-      
-      // Update profile display name
-      await updateProfile(user, { displayName: name });
-
-      // Create profile document in firestore
-      const userProfile = {
-        uid: user.uid,
-        name: name,
-        email: email,
-        college: college || "N/A",
-        profession: profession,
-        createdAt: new Date().toISOString(),
-        productivityScore: 78 // Default momentum starter score!
-      };
-
-      await setDoc(doc(db, "users", user.uid), userProfile);
-      
-      setSuccessMsg("Registration successful! Logging you in...");
-      setTimeout(() => {
-        onAuthSuccess(user.uid);
-      }, 1000);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || "Failed to sign up.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setErrorMsg("Please provide your email and password.");
-      return;
-    }
-    setLoading(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-    try {
-      const userCred = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Ensure user profile details are initialized
-      const userDocRef = doc(db, "users", userCred.user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      
-      if (!userDocSnap.exists()) {
-        await setDoc(userDocRef, {
-          uid: userCred.user.uid,
-          name: userCred.user.displayName || "Momentum Strategist",
-          email: userCred.user.email || email,
-          college: "University",
-          profession: "Student",
-          createdAt: new Date().toISOString(),
-          productivityScore: 75
-        });
-      }
-
-      setSuccessMsg("Logged in successfully!");
-      setTimeout(() => {
-        onAuthSuccess(userCred.user.uid);
-      }, 1000);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || "Failed to sign in. Please verify your credentials.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    setErrorMsg("");
-    try {
-      const res = await signInWithPopup(auth, googleProvider);
-      const user = res.user;
-
-      const userDocRef = doc(db, "users", user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (!userDocSnap.exists()) {
-        await setDoc(userDocRef, {
-          uid: user.uid,
-          name: user.displayName || "Google User",
-          email: user.email || "",
-          photoURL: user.photoURL || "",
-          college: "N/A",
-          profession: "Entrepreneur",
-          createdAt: new Date().toISOString(),
-          productivityScore: 80
-        });
-      }
-
-      setSuccessMsg("Signed in with Google!");
-      setTimeout(() => {
-        onAuthSuccess(user.uid);
-      }, 1000);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg("Failed Google authentication process.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      setErrorMsg("Please enter your email.");
-      return;
-    }
-    setLoading(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setSuccessMsg("Password reset email sent. Please check your inbox!");
-    } catch (err: any) {
-      setErrorMsg("Failed to dispatch password recovery email. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [authMode, setAuthMode] = useState<"none" | "login" | "signup">("none");
 
   return (
     <div id="landing-root" className="min-h-screen bg-neutral-950 text-white font-sans overflow-x-hidden selection:bg-purple-600 selection:text-white">
@@ -214,14 +62,14 @@ export default function LandingPage({ onAuthSuccess }: LandingPageProps) {
           <div className="flex items-center space-x-3">
             <button 
               id="btn-nav-login"
-              onClick={() => { setAuthMode("login"); setErrorMsg(""); setSuccessMsg(""); }}
+              onClick={() => setAuthMode("login")}
               className="px-4 py-2 text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
             >
               Sign In
             </button>
             <button 
               id="btn-nav-signup"
-              onClick={() => { setAuthMode("signup"); setErrorMsg(""); setSuccessMsg(""); }}
+              onClick={() => setAuthMode("signup")}
               className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-all shadow-md shadow-indigo-600/20 hover:scale-105 active:scale-95 cursor-pointer"
             >
               Get Started
@@ -707,282 +555,29 @@ export default function LandingPage({ onAuthSuccess }: LandingPageProps) {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-md backdrop-blur-xl bg-neutral-900/90 border border-neutral-800 p-8 rounded-2xl shadow-2xl relative z-10 text-left"
+              className="w-full max-w-md relative z-10 text-left"
             >
               {/* Close Button */}
               <button 
                 onClick={() => setAuthMode("none")}
-                className="absolute top-4 right-4 text-neutral-400 hover:text-white hover:bg-neutral-800/60 p-1.5 rounded-lg transition-colors cursor-pointer"
+                className="absolute top-4 right-4 z-50 text-neutral-400 hover:text-white hover:bg-neutral-800/60 p-1.5 rounded-lg transition-colors cursor-pointer"
               >
                 <XIcon className="w-5 h-5" />
               </button>
 
-              <div className="text-center mb-6">
-                <div className="inline-flex p-3 bg-indigo-950 text-indigo-400 rounded-xl mb-3 border border-indigo-800/40">
-                  <Zap className="w-6 h-6" />
-                </div>
-                <h3 className="text-2xl font-bold text-white">
-                  {authMode === "login" && "Welcome Back"}
-                  {authMode === "signup" && "Join Momentum AI"}
-                  {authMode === "forgot" && "Recover Access"}
-                </h3>
-                <p className="text-neutral-400 text-xs mt-1">
-                  {authMode === "login" && "Enter your credentials to regain momentum"}
-                  {authMode === "signup" && "Construct your comprehensive habit scheduler"}
-                  {authMode === "forgot" && "Reset link will be dispatched to your email"}
-                </p>
-              </div>
-
-              {/* Toast Alerts inside modal */}
-              {errorMsg && (
-                <div className="p-3 mb-4 rounded-xl bg-red-950/50 border border-red-900/60 text-red-300 text-xs flex items-center space-x-2 font-medium">
-                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-              {successMsg && (
-                <div className="p-3 mb-4 rounded-xl bg-emerald-950/50 border border-emerald-900/60 text-emerald-300 text-xs flex items-center space-x-2 font-medium">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                  <span>{successMsg}</span>
-                </div>
-              )}
-
-              {/* Forms */}
               {authMode === "login" && (
-                <form onSubmit={handleEmailLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-neutral-400 text-xs font-semibold mb-2 uppercase tracking-wider">Email Address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="email" 
-                        required
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2.5 pl-10 pr-4 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-neutral-400 text-xs font-semibold mb-2 uppercase tracking-wider">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="password" 
-                        required
-                        placeholder="••••••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2.5 pl-10 pr-4 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] font-medium text-neutral-400 pt-1">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={rememberMe} 
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="rounded border-neutral-800 text-indigo-600 focus:ring-0 bg-neutral-950 focus:outline-none"
-                      />
-                      <span>Remember me</span>
-                    </label>
-                    <button 
-                      type="button"
-                      onClick={() => setAuthMode("forgot")}
-                      className="text-indigo-400 hover:text-indigo-300 hover:underline"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 rounded-xl text-white font-bold text-xs tracking-wider transition-all uppercase cursor-pointer"
-                  >
-                    {loading ? "Authenticating..." : "Sign In"}
-                  </button>
-                </form>
+                <LoginComponent 
+                  onAuthSuccess={onAuthSuccess} 
+                  onSwitchToSignup={() => setAuthMode("signup")} 
+                />
               )}
 
               {authMode === "signup" && (
-                <form onSubmit={handleEmailSignUp} className="space-y-4 max-h-[440px] overflow-y-auto pr-1">
-                  <div>
-                    <label className="block text-neutral-400 text-xs font-semibold mb-1.5 uppercase tracking-wider">Display Name *</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Jane Doe"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2 pl-10 pr-4 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-neutral-400 text-xs font-semibold mb-1.5 uppercase tracking-wider">Email Address *</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="email" 
-                        required
-                        placeholder="you@domain.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2 pl-10 pr-4 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-neutral-400 text-xs font-semibold mb-1.5 uppercase tracking-wider">Password *</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="password" 
-                        required
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2 pl-10 pr-4 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-neutral-400 text-[10px] font-semibold mb-1 uppercase tracking-wider">College/Company</label>
-                      <div className="relative">
-                        <School className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-500" />
-                        <input 
-                          type="text" 
-                          placeholder="Stanford"
-                          value={college}
-                          onChange={(e) => setCollege(e.target.value)}
-                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2 pl-8 pr-3 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-neutral-400 text-[10px] font-semibold mb-1 uppercase tracking-wider">Profession</label>
-                      <div className="relative">
-                        <Briefcase className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-500" />
-                        <select 
-                          value={profession}
-                          onChange={(e) => setProfession(e.target.value)}
-                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2 pl-8 pr-3 text-[11px] font-medium text-white appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
-                        >
-                          <option value="Student">Student</option>
-                          <option value="Researcher">Researcher</option>
-                          <option value="Entrepreneur">Entrepreneur</option>
-                          <option value="Engineer">Engineer</option>
-                          <option value="Manager">Manager</option>
-                          <option value="Freelancer">Freelancer</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 rounded-xl text-white font-bold text-xs tracking-wider transition-all uppercase cursor-pointer mt-2"
-                  >
-                    {loading ? "Creating strategy profile..." : "Generate Account"}
-                  </button>
-                </form>
+                <SignupComponent 
+                  onAuthSuccess={onAuthSuccess} 
+                  onSwitchToLogin={() => setAuthMode("login")} 
+                />
               )}
-
-              {authMode === "forgot" && (
-                <form onSubmit={handleForgotPassword} className="space-y-4">
-                  <div>
-                    <label className="block text-neutral-400 text-xs font-semibold mb-2 uppercase tracking-wider">Registered Email</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="email" 
-                        required
-                        placeholder="you@domain.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 rounded-xl text-white font-bold text-xs tracking-wider transition-all uppercase cursor-pointer"
-                  >
-                    {loading ? "Sending..." : "Send Reset Email"}
-                  </button>
-                </form>
-              )}
-
-              {/* Social authentication spacer */}
-              {authMode !== "forgot" && (
-                <div className="mt-6">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-neutral-800" /></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-neutral-900 border border-neutral-800/80 px-3 py-0.5 rounded-full text-[10px] text-neutral-400 font-semibold tracking-widest">Or Continue With</span></div>
-                  </div>
-
-                  <button 
-                    id="btn-google-login"
-                    onClick={handleGoogleSignIn}
-                    disabled={loading}
-                    className="w-full py-2.5 bg-white border border-neutral-300 hover:bg-neutral-100/90 rounded-xl text-neutral-950 font-bold text-xs flex items-center justify-center space-x-2.5 tracking-wide transition-all cursor-pointer hover:scale-[1.01]"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.578-7.859-8s3.53-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l3.253-3.133C18.33 1.258 15.542 0 12.24 0c-6.63 0-12 5.37-12 12s5.37 12 12 12c6.918 0 11.52-4.863 11.52-11.727 0-.788-.085-1.39-.188-1.988H12.24z"/>
-                    </svg>
-                    <span>Authorize Google Sync</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Footer navigation */}
-              <div className="mt-6 text-center text-xs font-semibold text-neutral-500">
-                {authMode === "login" && (
-                  <p>
-                    Don't have an active roadmap?{" "}
-                    <button 
-                      onClick={() => setAuthMode("signup")}
-                      className="text-indigo-400 hover:text-indigo-300 hover:underline"
-                    >
-                      Register Now
-                    </button>
-                  </p>
-                )}
-                {authMode === "signup" && (
-                  <p>
-                    Already have a plan?{" "}
-                    <button 
-                      onClick={() => setAuthMode("login")}
-                      className="text-indigo-400 hover:text-indigo-300 hover:underline"
-                    >
-                      Sign In
-                    </button>
-                  </p>
-                )}
-                {authMode === "forgot" && (
-                  <button 
-                    onClick={() => setAuthMode("login")}
-                    className="text-indigo-400 hover:text-indigo-300 hover:underline mt-2 flex items-center justify-center mx-auto space-x-1"
-                  >
-                    <ArrowRight className="w-3 h-3 rotate-180" />
-                    <span>Back to login panel</span>
-                  </button>
-                )}
-              </div>
             </motion.div>
           </div>
         )}
